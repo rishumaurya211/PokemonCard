@@ -331,10 +331,12 @@ const styles = `
   }
 
   .pokemon-image {
-    width: 80px;
-    height: 80px;
-    object-fit: contain;
-    margin-bottom: 10px;
+    width: 80px !important;
+    height: 80px !important;
+    object-fit: contain !important;
+    display: block !important;
+    border: none !important;
+    background: transparent !important;
   }
 
   .pokemon-name {
@@ -673,30 +675,80 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
     disabled,
     showAttack = false,
     isInSelection = false,
-  }) => (
-    <div
-      className={`pokemon-card ${isSelected ? "selected" : ""} ${
-        disabled ? "disabled" : ""
-      } ${isInSelection ? "selection-card" : ""}`}
-      onClick={!disabled ? onClick : undefined}
-    >
-      <img
-        src={
-          pokemon.sprites.other.dream_world.front_default ||
-          pokemon.sprites.front_default
-        }
-        alt={pokemon.name}
-        className="pokemon-image"
-      />
-      <h3 className="pokemon-name">{pokemon.name}</h3>
-      <div className="pokemon-types">
-        {pokemon.types.map((type) => type.type.name).join(", ")}
+  }) => {
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const [imageError, setImageError] = useState(false);
+
+    // Get the best available image
+    const getImageUrl = (pokemon) => {
+      if (pokemon.sprites.other?.dream_world?.front_default) {
+        return pokemon.sprites.other.dream_world.front_default;
+      }
+      if (pokemon.sprites.other?.["official-artwork"]?.front_default) {
+        return pokemon.sprites.other["official-artwork"].front_default;
+      }
+      if (pokemon.sprites.front_default) {
+        return pokemon.sprites.front_default;
+      }
+      return null;
+    };
+
+    const imageUrl = getImageUrl(pokemon);
+    return (
+      <div
+        className={`pokemon-card ${isSelected ? "selected" : ""} ${
+          disabled ? "disabled" : ""
+        } ${isInSelection ? "selection-card" : ""}`}
+        onClick={!disabled ? onClick : undefined}
+      >
+        <div className="pokemon-image-container">
+          {!imageLoaded && !imageError && (
+            <div className="pokemon-image-loading"></div>
+          )}
+          {imageUrl && !imageError ? (
+            <img
+              src={imageUrl}
+              alt={pokemon.name}
+              className="pokemon-image"
+              onLoad={() => setImageLoaded(true)}
+              onError={() => {
+                setImageError(true);
+                setImageLoaded(true);
+              }}
+              style={{
+                opacity: imageLoaded ? 1 : 0,
+                transition: "opacity 0.3s ease",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: "80px",
+                height: "80px",
+                background: "#f0f0f0",
+                borderRadius: "8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "2rem",
+              }}
+            >
+              🎮
+            </div>
+          )}
+        </div>
+        <h3 className="pokemon-name">{pokemon.name}</h3>
+        <div className="pokemon-types">
+          {pokemon.types.map((type) => type.type.name).join(", ")}
+        </div>
+        {showAttack && (
+          <div className="attack-stat">
+            Attack: {pokemon.stats[1].base_stat}
+          </div>
+        )}
       </div>
-      {showAttack && (
-        <div className="attack-stat">Attack: {pokemon.stats[1].base_stat}</div>
-      )}
-    </div>
-  );
+    );
+  };
 
   if (loading) {
     return (
