@@ -483,7 +483,7 @@ if (typeof document !== "undefined") {
 }
 
 const PokemonBattleGame = ({ onBackToBrowse }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, refreshUser } = useAuth();
   const [allPokemon, setAllPokemon] = useState([]);
   const [playerCards, setPlayerCards] = useState([]);
   const [botCards, setBotCards] = useState([]);
@@ -505,6 +505,11 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
   const [myTeamSubmitted, setMyTeamSubmitted] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
   const [isFriendBattle, setIsFriendBattle] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [opponentHasSelected, setOpponentHasSelected] = useState(false);
+  const [opponentUserInfo, setOpponentUserInfo] = useState(null);
+  const [isCreator, setIsCreator] = useState(false);
+  const [errorStatus, setErrorStatus] = useState("");
 
   const API = "https://pokeapi.co/api/v2/pokemon?limit=151";
 
@@ -540,28 +545,62 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
     if (!socket) return;
 
     const handleBattleAction = ({ action, data }) => {
-      if (action === 'card-selected') {
-        setOpponentCurrentCard(data.pokemon);
-        
-        // If I already selected a card, start the battle
-        if (playerCurrentCard) {
-          setTimeout(() => {
-            battle(playerCurrentCard, data.pokemon);
-          }, 500);
-        }
-      } else if (action === 'round-result') {
-        // Handle round result from opponent
+      if (action === 'round-result') {
+        // Handle round result from opponent if needed
       }
     };
 
+    const handleTeamsReady = () => {
+      setOpponentReady(true);
+      checkOpponentTeam();
+    };
+
+    const handleOpponentSelected = () => {
+      setOpponentHasSelected(true);
+    };
+
+    const handleRoundRevealed = ({ selections, round }) => {
+      const opponentId = Object.keys(selections).find(id => id !== user.id);
+      const opponentCard = selections[opponentId];
+      const myCard = selections[user.id];
+      
+      setOpponentCurrentCard(opponentCard);
+      setOpponentHasSelected(false);
+      
+      // The battle function will update scores and history
+      setTimeout(() => {
+        battle(myCard, opponentCard);
+      }, 800);
+    };
+
+    const handleGameOverTriggered = ({ finalRound }) => {
+      // Logic for game over already handled in battle() for state, 
+      // but we use this to ensure final sync if needed
+      setGameState("gameOver");
+    };
+
+    const handleMatchInitialized = ({ matchId }) => {
+      setCurrentMatchId(matchId);
+    };
+
     onBattleAction(handleBattleAction);
+    socket.on('teams-ready', handleTeamsReady);
+    socket.on('opponent-selected', handleOpponentSelected);
+    socket.on('round-revealed', handleRoundRevealed);
+    socket.on('game-over-triggered', handleGameOverTriggered);
+    socket.on('match-initialized', handleMatchInitialized);
 
     return () => {
       if (socket) {
         socket.off('battle-action', handleBattleAction);
+        socket.off('teams-ready', handleTeamsReady);
+        socket.off('opponent-selected', handleOpponentSelected);
+        socket.off('round-revealed', handleRoundRevealed);
+        socket.off('game-over-triggered', handleGameOverTriggered);
+        socket.off('match-initialized', handleMatchInitialized);
       }
     };
-  }, [isFriendBattle, friendBattleRoomId, playerCurrentCard]);
+  }, [isFriendBattle, friendBattleRoomId, user?.id]);
 
   const getRandomPokemon = (excludeIds = []) => {
     const availablePokemon = allPokemon.filter(
@@ -575,6 +614,7 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
   const startPokemonSelection = () => {
     setSelectedPokemon([]);
     setSearch("");
+    setErrorStatus("");
     setGameState("selection");
   };
 
@@ -593,6 +633,8 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
 
     // For friend battles, submit team and wait for opponent
     if (isFriendBattle && friendBattleRoomId) {
+      setIsSubmitting(true);
+      setErrorStatus("");
       try {
         const response = await battleRoomAPI.submitTeam(friendBattleRoomId, selectedPokemon);
         if (response.success) {
@@ -600,17 +642,19 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
           setMyTeamSubmitted(true);
           setOpponentReady(response.bothTeamsReady);
           
-          // If both teams are ready, start battle
           if (response.bothTeamsReady) {
-            // Fetch opponent team from backend (would need to add this endpoint)
-            // For now, we'll poll or wait for socket event
             setTimeout(() => {
               checkOpponentTeam();
             }, 1000);
           }
+        } else {
+          setErrorStatus(response.message || "Failed to submit team");
         }
       } catch (error) {
         console.error('Failed to submit team:', error);
+        setErrorStatus("Error: " + (error.message || "Connection failed"));
+      } finally {
+        setIsSubmitting(false);
       }
       return;
     }
@@ -658,23 +702,30 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
       const response = await battleRoomAPI.getOpponentTeam(friendBattleRoomId);
       if (response.success && response.opponentTeam) {
         setOpponentTeam(response.opponentTeam);
-        // Convert opponent team to Pokemon objects if needed
-        setBotCards(response.opponentTeam); // Reusing botCards for opponent team
+        setOpponentUserInfo(response.opponent);
+        setBotCards(response.opponentTeam); 
+        
+        // Reset battle state for the new match
         setGameState("battle");
         setPlayerScore(0);
         setBotScore(0);
         setBattleHistory([]);
+        setPlayerCurrentCard(null);
+        setOpponentCurrentCard(null);
+        setBattleResult("");
         
-        // Create match
-        if (isAuthenticated && user) {
+        // Only one player (the room creator) creates the match in the DB to avoid duplicates
+        // We'll fetch room info to check who created it
+        const roomResp = await battleRoomAPI.getRoom(friendBattleRoomId);
+        const amICreator = roomResp.success && roomResp.room.createdBy === user.id;
+        setIsCreator(amICreator);
+        
+        if (amICreator && isAuthenticated) {
           try {
-            const matchResponse = await matchAPI.createMatch({
-              matchType: "vs-friend",
-              pokemonTeam: selectedPokemon,
-              roomId: friendBattleRoomId
-            });
             if (matchResponse.match) {
               setCurrentMatchId(matchResponse.match._id);
+              // Broadcast the match ID to the other player so they can update the same record
+              sendBattleAction(friendBattleRoomId, 'match-init', { matchId: matchResponse.match._id });
             }
           } catch (error) {
             console.error('Failed to create match:', error);
@@ -686,6 +737,21 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
     }
   };
   const startNewGame = async () => {
+    // Reset all match states
+    setPlayerScore(0);
+    setBotScore(0);
+    setBattleHistory([]);
+    setPlayerCurrentCard(null);
+    setBotCurrentCard(null);
+    setOpponentCurrentCard(null);
+    setBattleResult("");
+    setSelectedPokemon([]);
+    setMyTeamSubmitted(false);
+    setOpponentReady(false);
+    setOpponentHasSelected(false);
+    setIsFriendBattle(false);
+    setFriendBattleRoomId(null);
+
     const usedIds = [];
     const playerTeam = [];
     const botTeam = [];
@@ -706,13 +772,7 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
 
     setPlayerCards(playerTeam);
     setBotCards(botTeam);
-    setPlayerScore(0);
-    setBotScore(0);
-    setBattleHistory([]);
     setGameState("battle");
-    setPlayerCurrentCard(null);
-    setBotCurrentCard(null);
-    setBattleResult("");
 
     // Create match in backend if authenticated
     if (isAuthenticated && user) {
@@ -730,21 +790,35 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
     }
   };
 
+  const resetToSetup = () => {
+    setGameState("setup");
+    setPlayerScore(0);
+    setBotScore(0);
+    setBattleHistory([]);
+    setPlayerCurrentCard(null);
+    setBotCurrentCard(null);
+    setOpponentCurrentCard(null);
+    setBattleResult("");
+    setSelectedPokemon([]);
+    setMyTeamSubmitted(false);
+    setOpponentReady(false);
+    setOpponentHasSelected(false);
+    setCurrentMatchId(null);
+    setIsFriendBattle(false);
+    setFriendBattleRoomId(null);
+  };
+
   const selectPlayerCard = (card) => {
-    if (playerCurrentCard || (isFriendBattle ? opponentCurrentCard : botCurrentCard)) return;
+    if (playerCurrentCard) return;
 
     setPlayerCurrentCard(card);
 
-    // For friend battles, send selection to opponent
+    // For friend battles, send selection to server and wait for reveal
     if (isFriendBattle && friendBattleRoomId) {
-      sendBattleAction(friendBattleRoomId, 'card-selected', { pokemon: card });
-      
-      // If opponent already selected, start battle immediately
-      if (opponentCurrentCard) {
-        setTimeout(() => {
-          battle(card, opponentCurrentCard);
-        }, 500);
-      }
+      sendBattleAction(friendBattleRoomId, 'card-selected', { 
+        pokemon: card,
+        userId: user.id
+      });
       return;
     }
 
@@ -762,118 +836,142 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
     }, 1000);
   };
 
+  // Functional battle update to avoid closure traps
   const battle = (playerCard, opponentCard) => {
     const playerAttack = playerCard.stats[1].base_stat; // Attack stat
     const opponentAttack = opponentCard.stats[1].base_stat;
 
-    let result = "";
+    let roundResultText = "";
     let roundWinner = "draw";
-    let newPlayerScore = playerScore;
-    let newOpponentScore = isFriendBattle ? botScore : botScore; // Reusing botScore for opponent in friend battles
 
     if (playerAttack > opponentAttack) {
-      result = isFriendBattle ? "You Win!" : "Player Wins!";
+      roundResultText = isFriendBattle ? "You Win!" : "Player Wins!";
       roundWinner = "player1";
-      newPlayerScore += 1;
     } else if (opponentAttack > playerAttack) {
-      result = isFriendBattle ? "Opponent Wins!" : "Bot Wins!";
+      roundResultText = isFriendBattle ? "Opponent Wins!" : "Bot Wins!";
       roundWinner = "player2";
-      newOpponentScore += 1;
     } else {
-      result = "Draw!";
+      roundResultText = "Draw!";
       roundWinner = "draw";
     }
 
-    setBattleResult(result);
-    setPlayerScore(newPlayerScore);
-    if (isFriendBattle) {
-      setBotScore(newOpponentScore); // Reusing botScore state for opponent
-    } else {
-      setBotScore(newOpponentScore);
-    }
+    setBattleResult(roundResultText);
+    
+    // Update scores
+    if (roundWinner === "player1") setPlayerScore(prev => prev + 1);
+    else if (roundWinner === "player2") setBotScore(prev => prev + 1);
 
-    const battleRecord = {
-      playerCard,
-      opponentCard: opponentCard, // Renamed from botCard for clarity
-      playerAttack,
-      opponentAttack: opponentAttack,
-      result,
-      roundNumber: battleHistory.length + 1,
-      winner: roundWinner
-    };
+    setBattleHistory(prev => {
+      const battleRecord = {
+        playerCard,
+        botCard: opponentCard,
+        playerAttack,
+        botAttack: opponentAttack,
+        result: roundResultText,
+        roundNumber: prev.length + 1,
+        winner: roundWinner
+      };
+      
+      const newHistory = [...prev, battleRecord];
+      
+      // Auto-reset cards for next round if not game over
+      if (newHistory.length < 6) {
+        setTimeout(() => {
+          setPlayerCurrentCard(null);
+          if (isFriendBattle) setOpponentCurrentCard(null);
+          else setBotCurrentCard(null);
+          setBattleResult("");
+        }, 3000);
+      }
 
-    const updatedHistory = [...battleHistory, battleRecord];
-    setBattleHistory(updatedHistory);
+      // Send result to opponent
+      if (isFriendBattle && friendBattleRoomId) {
+        sendBattleAction(friendBattleRoomId, 'round-result', {
+          round: battleRecord.roundNumber,
+          result: battleRecord
+        });
+      }
 
-    // Send battle result to opponent in friend battles
-    if (isFriendBattle && friendBattleRoomId) {
-      sendBattleAction(friendBattleRoomId, 'round-result', {
-        round: battleRecord.roundNumber,
-        result: battleRecord
-      });
-    }
-
-    // Check if game is over (exactly 6 rounds)
-    if (updatedHistory.length >= 6) {
-      setTimeout(() => {
-        completeMatch(newPlayerScore, newOpponentScore, updatedHistory);
-        setGameState("gameOver");
-      }, 2000);
-    } else {
-      setTimeout(() => {
-        setPlayerCurrentCard(null);
-        if (isFriendBattle) {
-          setOpponentCurrentCard(null);
-        } else {
-          setBotCurrentCard(null);
-        }
-        setBattleResult("");
-      }, 3000);
-    }
+      return newHistory;
+    });
   };
 
+  // Separate effect for GameOver to ensure we have final scores and history
+  useEffect(() => {
+    if (battleHistory.length === 6 && gameState === "battle") {
+      setTimeout(() => {
+        completeMatch(playerScore, botScore, battleHistory);
+        setGameState("gameOver");
+      }, 2000);
+    }
+  }, [battleHistory.length, gameState]);
+
+
   const completeMatch = async (finalPlayerScore, finalBotScore, history = battleHistory) => {
-    if (!isAuthenticated || !user) return;
+    if (!isAuthenticated || !user) {
+      console.warn("User not authenticated, skipping match save.");
+      return;
+    }
 
     try {
-      const winner = finalPlayerScore > finalBotScore ? "player1" : 
-                     finalBotScore > finalPlayerScore ? "player2" : "draw";
+      // In friend battles, only the creator saves the match result to avoid duplicates and conflicts
+      if (isFriendBattle && !isCreator) {
+        console.log("Not the creator, skipping save, but refreshing stats...");
+        setTimeout(() => refreshUser && refreshUser(), 3000);
+        return;
+      }
 
-      const rounds = history.map((battle, index) => ({
-        roundNumber: index + 1,
-        player1Pokemon: {
-          pokemonId: battle.playerCard.id,
-          pokemonName: battle.playerCard.name,
-          attack: battle.playerAttack
-        },
-        player2Pokemon: {
-          pokemonId: (battle.opponentCard || battle.botCard).id,
-          pokemonName: (battle.opponentCard || battle.botCard).name,
-          attack: battle.opponentAttack || battle.botAttack
-        },
-        winner: battle.winner
-      }));
+      // Calculate final scores from history just to be 100% sure we have final values
+      const pScore = history.filter(h => h.winner === 'player1').length;
+      const bScore = history.filter(h => h.winner === 'player2').length;
+      
+      const winner = pScore > bScore ? "player1" : 
+                     bScore > pScore ? "player2" : "draw";
+      
+      console.log(`Completing match ${currentMatchId || 'New'} with score ${pScore}-${bScore}, winner: ${winner}`);
 
       const matchData = {
-        matchType: "vs-bot",
+        matchType: isFriendBattle ? "vs-friend" : "vs-bot",
         pokemonTeam: playerCards,
-        rounds: rounds,
+        rounds: history.map((battle, index) => ({
+          roundNumber: index + 1,
+          player1Pokemon: {
+            pokemonId: battle.playerCard.id,
+            pokemonName: battle.playerCard.name,
+            attack: battle.playerAttack
+          },
+          player2Pokemon: {
+            pokemonId: battle.botCard.id,
+            pokemonName: battle.botCard.name,
+            attack: battle.botAttack
+          },
+          winner: battle.winner
+        })),
         finalScore: {
-          player1: finalPlayerScore,
-          player2: finalBotScore
+          player1: pScore,
+          player2: bScore
         },
         winner: winner,
-        player2Team: botCards
+        player2Team: botCards || []
       };
 
-      if (currentMatchId) {
-        await matchAPI.completeMatch(currentMatchId, matchData);
+      let completedMatchId = currentMatchId;
+
+      if (completedMatchId) {
+        await matchAPI.completeMatch(completedMatchId, matchData);
       } else {
-        // Create new match
         const response = await matchAPI.createMatch(matchData);
         if (response.match) {
-          await matchAPI.completeMatch(response.match._id, matchData);
+          completedMatchId = response.match._id;
+          await matchAPI.completeMatch(completedMatchId, matchData);
         }
+      }
+      
+      console.log("Match saved successfully. Refreshing user stats...");
+      
+      // Refresh user stats/points from server
+      if (refreshUser) {
+        await refreshUser();
       }
     } catch (error) {
       console.error('Failed to save match:', error);
@@ -1087,31 +1185,38 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
               ))}
             </div>
             {selectedPokemon.length === 6 && (
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                <button
-                  className="start-battle-button"
-                  onClick={startBattleWithSelectedPokemon}
-                >
-                  {isFriendBattle ? 'Submit Team & Wait for Opponent' : 'Start Battle with This Team!'} ⚔️
-                </button>
-                {isFriendBattle && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                   <button
                     className="start-battle-button"
-                    onClick={() => {
-                      // Random team selection for friend battle
-                      const usedIds = [];
-                      const randomTeam = [];
-                      for (let i = 0; i < 6; i++) {
-                        const pokemon = getRandomPokemon(usedIds);
-                        randomTeam.push(pokemon);
-                        usedIds.push(pokemon.id);
-                      }
-                      setSelectedPokemon(randomTeam);
-                    }}
-                    style={{ background: 'linear-gradient(45deg, #2196F3, #21CBF3)' }}
+                    onClick={startBattleWithSelectedPokemon}
+                    disabled={isSubmitting}
                   >
-                    🎲 Random Team
+                    {isSubmitting ? 'Submitting...' : (isFriendBattle ? 'Submit Team & Wait' : 'Start Battle!')} ⚔️
                   </button>
+                  {isFriendBattle && !isSubmitting && (
+                    <button
+                      className="start-battle-button"
+                      onClick={() => {
+                        const usedIds = [];
+                        const randomTeam = [];
+                        for (let i = 0; i < 6; i++) {
+                          const pokemon = getRandomPokemon(usedIds);
+                          randomTeam.push(pokemon);
+                          usedIds.push(pokemon.id);
+                        }
+                        setSelectedPokemon(randomTeam);
+                      }}
+                      style={{ background: 'linear-gradient(45deg, #2196F3, #21CBF3)' }}
+                    >
+                      🎲 Random Team
+                    </button>
+                  )}
+                </div>
+                {errorStatus && (
+                  <div style={{ color: '#ff4d4d', background: 'rgba(0,0,0,0.5)', padding: '10px 20px', borderRadius: '10px', fontWeight: 'bold' }}>
+                    ❌ {errorStatus}
+                  </div>
                 )}
               </div>
             )}
@@ -1178,8 +1283,8 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
         <h1>Game Over!</h1>
         <div className="final-score">
           <h2>Final Score</h2>
-          <p>{isFriendBattle ? user?.username : "Player"}: {playerScore}</p>
-          <p>{isFriendBattle ? "Opponent" : "Bot"}: {botScore}</p>
+          <p>{isFriendBattle ? (user?.username || "You") : "Player"}: {playerScore}</p>
+          <p>{isFriendBattle ? (opponentUserInfo?.username || "Opponent") : "Bot"}: {botScore}</p>
           <h3>
             {finalWinner === "Draw" 
               ? "It's a Draw!" 
@@ -1188,9 +1293,14 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
                 : (isFriendBattle ? "Opponent Wins!" : "Bot Wins!")}
           </h3>
         </div>
-        <button className="start-button" onClick={startNewGame}>
-          Play Again
-        </button>
+        <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+          <button className="start-button" onClick={startNewGame}>
+            Play Again
+          </button>
+          <button className="start-button" style={{ background: 'linear-gradient(45deg, #6c757d, #495057)' }} onClick={resetToSetup}>
+            Back to Menu
+          </button>
+        </div>
       </div>
     );
   }
@@ -1204,8 +1314,8 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
 
       <div className="score-board">
         <div className="score">{isFriendBattle ? user?.username : "Player"}: {playerScore}</div>
-        <div className="score">{isFriendBattle ? "Opponent" : "Bot"}: {botScore}</div>
-        <div className="round">Round: {battleHistory.length}/6</div>
+        <div className="score">{isFriendBattle ? (opponentUserInfo?.username || "Opponent") : "Bot"}: {botScore}</div>
+        <div className="round">Round: {Math.min(battleHistory.length + 1, 6)}/6</div>
       </div>
 
       {/* Battle Area */}
@@ -1228,7 +1338,7 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
         </div>
 
         <div className="battle-side">
-          <h3>{isFriendBattle ? "Opponent's Pokemon" : "Bot's Pokemon"}</h3>
+          <h3>{isFriendBattle ? (opponentUserInfo?.username || "Opponent") : "Bot's Pokemon"}</h3>
           {(isFriendBattle ? opponentCurrentCard : botCurrentCard) && (
             <PokemonCard
               pokemon={isFriendBattle ? opponentCurrentCard : botCurrentCard}
@@ -1244,8 +1354,13 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
       <div className="player-cards">
         <h3>Select Your Pokemon:</h3>
         {isFriendBattle && playerCurrentCard && !opponentCurrentCard && (
-          <p style={{ textAlign: 'center', color: '#ffa500', marginBottom: '15px' }}>
-            Waiting for opponent to select their Pokemon...
+          <p style={{ textAlign: 'center', color: '#ffa500', marginBottom: '15px', fontWeight: 'bold', animation: 'pulse 1.5s infinite' }}>
+            {opponentHasSelected ? "Opponent has selected! Revealing soon..." : "Waiting for opponent's move..."}
+          </p>
+        )}
+        {isFriendBattle && !playerCurrentCard && opponentHasSelected && (
+          <p style={{ textAlign: 'center', color: '#00c851', marginBottom: '15px', fontWeight: 'bold' }}>
+            Opponent is ready! Choose your Pokemon! ⚡
           </p>
         )}
         <div className="cards-grid">
@@ -1268,11 +1383,11 @@ const PokemonBattleGame = ({ onBackToBrowse }) => {
             {battleHistory.map((battle, index) => (
               <div key={index} className="history-item">
                 <span>
-                  {battle.playerCard.name} ({battle.playerAttack})
+                  {battle.playerCard?.name} ({battle.playerAttack})
                 </span>
                 <span>vs</span>
                 <span>
-                  {battle.botCard.name} ({battle.botAttack})
+                  {battle.botCard?.name} ({battle.botAttack})
                 </span>
                 <span className="result">{battle.result}</span>
               </div>

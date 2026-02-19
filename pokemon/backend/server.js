@@ -13,6 +13,7 @@ import milestoneRoutes from './routes/milestones.js';
 import adminRoutes from './routes/admin.js';
 import battleRoomRoutes from './routes/battleRooms.js';
 import { initializeAdmin } from './utils/adminSetup.js';
+import { battleRooms } from './utils/gameState.js';
 
 dotenv.config();
 
@@ -27,8 +28,8 @@ const io = new Server(httpServer, {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -39,47 +40,121 @@ app.use('/api/referrals', referralRoutes);
 app.use('/api/milestones', milestoneRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/battle-rooms', battleRoomRoutes);
+app.set('io', io);
 
 // Socket.io for real-time battles
-const battleRooms = new Map(); // roomId -> { player1, player2, gameState }
+// Using shared battleRooms from gameState.js
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   // Join a battle room
-  socket.on('join-battle-room', ({ roomId, userId }) => {
+  socket.on('join-battle-room', ({ roomId, userId, username }) => {
     socket.join(roomId);
-    
+
     if (!battleRooms.has(roomId)) {
       battleRooms.set(roomId, {
+        roomId,
         players: [],
         gameState: 'waiting',
-        battleHistory: []
+        battleHistory: [],
+        currentRound: 0,
+        roundSelections: {}
       });
     }
 
     const room = battleRooms.get(roomId);
+
+    // Ensure room properties exist even if created via API
+    if (!room.players) room.players = [];
+    if (!room.battleHistory) room.battleHistory = [];
+    if (room.currentRound === undefined) room.currentRound = 0;
+    if (!room.roundSelections) room.roundSelections = {};
+
     if (!room.players.find(p => p.userId === userId)) {
-      room.players.push({ userId, socketId: socket.id });
+      room.players.push({ userId, username, socketId: socket.id });
+    } else {
+      // Update socket ID if user reconnects
+      const player = room.players.find(p => p.userId === userId);
+      player.socketId = socket.id;
     }
 
     io.to(roomId).emit('room-update', {
       players: room.players.length,
+      playerList: room.players.map(p => ({
+        userId: p.userId,
+        username: p.username || 'Anonymous'
+      })),
       gameState: room.gameState
     });
 
     // Start battle when 2 players join
-    if (room.players.length === 2 && room.gameState === 'waiting') {
-      room.gameState = 'ready';
+    if (room.players.length === 2) {
+      if (room.gameState === 'waiting') {
+        room.gameState = 'ready';
+      }
       io.to(roomId).emit('battle-ready');
+    }
+  });
+
+  // Handle manual leave
+  socket.on('leave-battle-room', ({ roomId }) => {
+    socket.leave(roomId);
+    const room = battleRooms.get(roomId);
+    if (room) {
+      const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
+      if (playerIndex !== -1) {
+        const userId = room.players[playerIndex].userId;
+        room.players[playerIndex].socketId = null;
+        io.to(roomId).emit('player-left', { userId });
+      }
     }
   });
 
   // Handle player action in battle
   socket.on('battle-action', ({ roomId, action, data }) => {
     const room = battleRooms.get(roomId);
-    if (room) {
-      // Broadcast action to other player
+    if (!room) return;
+
+    if (action === 'card-selected') {
+      const userId = data.userId;
+      if (!userId) return;
+
+      room.roundSelections[userId] = data.pokemon;
+
+      // Notify other player that opponent has made a move (but not which card)
+      socket.to(roomId).emit('opponent-selected', { userId });
+
+      // If both players in the room have selected
+      if (Object.keys(room.roundSelections).length === 2) {
+        const revealData = {
+          selections: room.roundSelections,
+          round: room.currentRound + 1
+        };
+
+        // Broadcast reveal to everyone in room
+        io.to(roomId).emit('round-revealed', revealData);
+
+        // Increment round and clear selections
+        room.currentRound += 1;
+        room.roundSelections = {};
+
+        // Check for game over
+        if (room.currentRound >= 6) {
+          setTimeout(() => {
+            room.gameState = 'gameOver';
+            io.to(roomId).emit('game-over-triggered', {
+              finalRound: room.currentRound
+            });
+          }, 4000); // Give time for the last round reveal to finish
+        }
+      }
+    } else if (action === 'match-init') {
+      // Store and sync the database match ID between players
+      room.matchId = data.matchId;
+      socket.to(roomId).emit('match-initialized', { matchId: data.matchId });
+    } else {
+      // Broadcast other actions like chat, etc.
       socket.to(roomId).emit('battle-action', { action, data });
     }
   });
@@ -89,11 +164,12 @@ io.on('connection', (socket) => {
     console.log('User disconnected:', socket.id);
     // Clean up rooms
     battleRooms.forEach((room, roomId) => {
-      room.players = room.players.filter(p => p.socketId !== socket.id);
-      if (room.players.length === 0) {
-        battleRooms.delete(roomId);
-      } else {
-        io.to(roomId).emit('player-left');
+      const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
+      if (playerIndex !== -1) {
+        console.log(`User ${room.players[playerIndex].userId} socket disconnected from room ${roomId}`);
+        // Simply null the socket ID so they can reconnect later
+        room.players[playerIndex].socketId = null;
+        io.to(roomId).emit('player-status-update', { userId: room.players[playerIndex].userId, status: 'offline' });
       }
     });
   });

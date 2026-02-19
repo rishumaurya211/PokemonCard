@@ -76,7 +76,7 @@ const userSchema = new mongoose.Schema({
 });
 
 // Generate referral code before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   // Only generate if it's a new user and doesn't have a referral code
   if (this.isNew && !this.referralCode && this.username) {
     const randomString = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -87,25 +87,25 @@ userSchema.pre('save', async function(next) {
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
 
 // Method to compare password
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Method to calculate win percentage
-userSchema.methods.calculateWinPercentage = function() {
+userSchema.methods.calculateWinPercentage = function () {
   if (this.stats.matchesPlayed === 0) return 0;
   return Math.round((this.stats.wins / this.stats.matchesPlayed) * 100);
 };
 
 // Update win percentage
-userSchema.methods.updateStats = function(result) {
+userSchema.methods.updateStats = function (result) {
   this.stats.matchesPlayed += 1;
   if (result === 'win') {
     this.stats.wins += 1;

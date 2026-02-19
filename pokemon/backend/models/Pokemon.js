@@ -44,7 +44,7 @@ const pokemonSchema = new mongoose.Schema({
 });
 
 // Index for faster queries
-pokemonSchema.index({ pokemonId: 1 });
+// (pokemonId unique: true already creates an index)
 pokemonSchema.index({ isLocked: 1, 'unlockRequirement.milestoneMatches': 1 });
 
 const Pokemon = mongoose.model('Pokemon', pokemonSchema);

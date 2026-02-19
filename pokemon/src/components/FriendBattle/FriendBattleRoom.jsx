@@ -10,6 +10,7 @@ const FriendBattleRoom = ({ onBack, onStartBattle }) => {
   const [roomId, setRoomId] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [players, setPlayers] = useState(0);
+  const [playerList, setPlayerList] = useState([]);
   const [gameState, setGameState] = useState('waiting'); // 'waiting', 'ready'
   const [error, setError] = useState('');
   const [inputRoomCode, setInputRoomCode] = useState('');
@@ -39,6 +40,9 @@ const FriendBattleRoom = ({ onBack, onStartBattle }) => {
 
     const handleRoomUpdate = (data) => {
       setPlayers(data.players);
+      if (data.playerList) {
+        setPlayerList(data.playerList);
+      }
       setGameState(data.gameState);
       if (data.gameState === 'ready') {
         setGameState('ready');
@@ -84,7 +88,7 @@ const FriendBattleRoom = ({ onBack, onStartBattle }) => {
       return;
     }
 
-    joinBattleRoom(roomId, user.id);
+    joinBattleRoom(roomId, user.id, user.username);
     setMode('waiting');
   };
 
@@ -111,7 +115,7 @@ const FriendBattleRoom = ({ onBack, onStartBattle }) => {
         
         const socket = getSocket();
         if (socket && socket.connected) {
-          joinBattleRoom(response.room.roomId, user.id);
+          joinBattleRoom(response.room.roomId, user.id, user.username);
         }
         
         setMode('joined');
@@ -259,6 +263,11 @@ const FriendBattleRoom = ({ onBack, onStartBattle }) => {
           <div className="room-status">
             <div className="players-indicator">
               <span>Players: {players}/2</span>
+              {playerList.length > 0 && (
+                <div className="player-names">
+                  ({playerList.map(p => p.username).join(', ')})
+                </div>
+              )}
             </div>
             <div className="room-code-info">
               <p>Room Code: <strong className="code-display">{roomCode}</strong></p>

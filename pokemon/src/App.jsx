@@ -20,30 +20,69 @@ function AppContent() {
     <>
       {/* Navigation Bar */}
       <nav className="main-nav">
-        <div className="nav-brand">
+        <div className="nav-brand" onClick={() => setCurrentView("browse")} style={{cursor:'pointer'}}>
           <h1>⚡ Pokemon Battle Arena</h1>
         </div>
+
+        <div className="nav-center">
+          {currentView !== "browse" && (
+            <button className="nav-button nav-back-btn" onClick={() => setCurrentView("browse")}>
+              ← Browse
+            </button>
+          )}
+        </div>
+
         <div className="nav-links">
           {isAuthenticated ? (
             <>
-              <button className="nav-button" onClick={() => setShowProfile(true)}>
-                👤 {user?.username}
+              {/* Points display */}
+              <div className="nav-points">
+                ⭐ {user?.milestonePoints || 0} pts
+              </div>
+
+              <button
+                className="nav-button nav-profile-btn"
+                onClick={() => setShowProfile(true)}
+                id="profile-nav-btn"
+              >
+                <span className="nav-user-avatar">
+                  {user?.username?.[0]?.toUpperCase()}
+                </span>
+                {user?.username}
               </button>
+
               {isAdmin && (
-                <button className="nav-button admin-btn" onClick={() => setShowAdmin(true)}>
+                <button
+                  className="nav-button admin-btn"
+                  onClick={() => setShowAdmin(true)}
+                  id="admin-nav-btn"
+                >
                   🔧 Admin
                 </button>
               )}
-              <button className="nav-button" onClick={logout}>
+
+              <button
+                className="nav-button nav-logout-btn"
+                onClick={logout}
+                id="logout-nav-btn"
+              >
                 Logout
               </button>
             </>
           ) : (
             <>
-              <button className="nav-button" onClick={() => setShowLogin(true)}>
+              <button
+                className="nav-button"
+                onClick={() => setShowLogin(true)}
+                id="login-nav-btn"
+              >
                 Login
               </button>
-              <button className="nav-button" onClick={() => setShowSignup(true)}>
+              <button
+                className="nav-button nav-signup-btn"
+                onClick={() => setShowSignup(true)}
+                id="signup-nav-btn"
+              >
                 Sign Up
               </button>
             </>

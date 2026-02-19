@@ -3,7 +3,7 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: "Inter", "Urbanist", sans-serif;
+  font-family: "Space Grotesk", "Inter", "Urbanist", sans-serif;
 }
 
 html {
@@ -570,7 +570,7 @@ header {
 h1 {
   font-size: 5.4rem;
   font-weight: bold;
-  color: #000 !important;
+  color: #1a1a2e;
   text-align: center;
 }
 

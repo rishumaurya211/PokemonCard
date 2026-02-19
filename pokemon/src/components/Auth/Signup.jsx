@@ -12,33 +12,54 @@ const Signup = ({ onSwitchToLogin, onClose }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [referrerInfo, setReferrerInfo] = useState(null);
+  const [validatingCode, setValidatingCode] = useState(false);
   const { signup } = useAuth();
 
-  // Check for referral code in URL
+  // Check for referral code in URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get('ref');
     if (refCode) {
-      setReferralCode(refCode);
+      setReferralCode(refCode.toUpperCase());
       validateReferralCode(refCode);
     }
   }, []);
 
   const validateReferralCode = async (code) => {
-    if (!code) return;
+    if (!code || code.length < 4) return;
+    setValidatingCode(true);
     try {
       const result = await referralAPI.validateReferralCode(code);
       if (result.success && result.valid) {
         setReferrerInfo(result.referrer);
+      } else {
+        setReferrerInfo(null);
       }
-    } catch (error) {
-      // Invalid code, ignore
+    } catch {
+      setReferrerInfo(null);
+    } finally {
+      setValidatingCode(false);
+    }
+  };
+
+  const handleReferralChange = (e) => {
+    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    setReferralCode(val);
+    if (val.length >= 6) {
+      validateReferralCode(val);
+    } else {
+      setReferrerInfo(null);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters long');
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -62,92 +83,113 @@ const Signup = ({ onSwitchToLogin, onClose }) => {
     if (result.success) {
       if (onClose) onClose();
     } else {
-      setError(result.error || 'Signup failed');
+      setError(result.error || 'Signup failed. Please try again.');
     }
 
     setLoading(false);
   };
 
   return (
-    <div className="auth-modal">
-      <div className="auth-content">
-        <button className="auth-close" onClick={onClose}>×</button>
-        <h2>Sign Up</h2>
+    <div className="auth-modal" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="auth-content" onClick={(e) => e.stopPropagation()}>
+        <button className="auth-close" onClick={onClose} aria-label="Close">×</button>
+
+        <div className="auth-logo-badge">
+          <span>🎮</span>
+        </div>
+
+        <h2>Join the Arena</h2>
+
         {error && <div className="auth-error">{error}</div>}
+
         {referrerInfo && (
           <div className="auth-info">
-            Referred by: <strong>{referrerInfo.username}</strong>
+            You were invited by <strong>{referrerInfo.username}</strong>! You'll get 50 bonus points on signup.
           </div>
         )}
+
         <form onSubmit={handleSubmit}>
           <div className="auth-field">
-            <label>Username</label>
+            <label htmlFor="signup-username">Trainer Name</label>
             <input
+              id="signup-username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
               minLength={3}
               maxLength={20}
-              placeholder="Choose a username"
+              placeholder="PokeTrainer123"
+              autoComplete="username"
             />
           </div>
+
           <div className="auth-field">
-            <label>Email</label>
+            <label htmlFor="signup-email">Email Address</label>
             <input
+              id="signup-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="your@email.com"
+              placeholder="trainer@pokemon.com"
+              autoComplete="email"
             />
           </div>
+
           <div className="auth-field">
-            <label>Password</label>
+            <label htmlFor="signup-password">Password</label>
             <input
+              id="signup-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              placeholder="••••••••"
+              placeholder="Min. 6 characters"
+              autoComplete="new-password"
             />
           </div>
+
           <div className="auth-field">
-            <label>Confirm Password</label>
+            <label htmlFor="signup-confirm-password">Confirm Password</label>
             <input
+              id="signup-confirm-password"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              placeholder="••••••••"
+              placeholder="Repeat password"
+              autoComplete="new-password"
             />
           </div>
+
           <div className="auth-field">
-            <label>Referral Code (Optional)</label>
+            <label htmlFor="signup-referral">
+              Referral Code {validatingCode && <span style={{color:'rgba(255,255,255,0.4)', fontSize:'1.1rem'}}>(checking...)</span>}
+              {referrerInfo && <span style={{color:'#69f0ae', fontSize:'1.1rem'}}> ✓ Valid!</span>}
+              <span style={{color:'rgba(255,255,255,0.3)', fontWeight:'normal', fontSize:'1.1rem'}}> (Optional)</span>
+            </label>
             <input
+              id="signup-referral"
               type="text"
               value={referralCode}
-              onChange={(e) => {
-                setReferralCode(e.target.value.toUpperCase());
-                if (e.target.value) {
-                  validateReferralCode(e.target.value);
-                } else {
-                  setReferrerInfo(null);
-                }
-              }}
-              placeholder="Enter referral code"
-              style={{ textTransform: 'uppercase' }}
+              onChange={handleReferralChange}
+              placeholder="e.g. ASH4BC1234"
+              maxLength={15}
+              style={{ textTransform: 'uppercase', letterSpacing: '2px' }}
             />
           </div>
-          <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? 'Creating account...' : 'Sign Up'}
+
+          <button type="submit" className="auth-button" disabled={loading} id="signup-submit-btn">
+            {loading ? '🔄 Creating account...' : '🚀 Start Your Journey'}
           </button>
         </form>
+
         <p className="auth-switch">
-          Already have an account?{' '}
+          Already a trainer?{' '}
           <button onClick={onSwitchToLogin} className="auth-link">
-            Login
+            Login here
           </button>
         </p>
       </div>

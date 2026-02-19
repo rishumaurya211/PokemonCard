@@ -30,15 +30,15 @@ export const getSocket = () => {
 };
 
 // Battle room functions
-export const joinBattleRoom = (roomId, userId) => {
+export const joinBattleRoom = (roomId, userId, username) => {
   if (socket) {
-    socket.emit('join-battle-room', { roomId, userId });
+    socket.emit('join-battle-room', { roomId, userId, username });
   }
 };
 
 export const leaveBattleRoom = (roomId) => {
   if (socket) {
-    socket.leave(roomId);
+    socket.emit('leave-battle-room', { roomId });
   }
 };
 

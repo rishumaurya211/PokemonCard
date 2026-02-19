@@ -1,11 +1,8 @@
 import express from 'express';
 import { protect } from '../middleware/auth.js';
+import { battleRooms, roomCodeMap } from '../utils/gameState.js';
 
 const router = express.Router();
-
-// In-memory storage for battle rooms (in production, use Redis or database)
-const battleRooms = new Map();
-const roomCodeMap = new Map(); // roomCode -> roomId for quick lookup
 
 // @route   POST /api/battle-rooms/create
 // @desc    Create a new battle room
@@ -14,21 +11,25 @@ router.post('/create', protect, async (req, res) => {
   try {
     const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const roomCode = roomId.split('_')[2].toUpperCase().substring(0, 6);
-    
+
     battleRooms.set(roomId, {
       roomCode,
       roomId,
       createdBy: req.user._id.toString(),
       players: [{
         userId: req.user._id.toString(),
-        username: req.user.username
+        username: req.user.username,
+        socketId: null
       }],
       gameState: 'waiting',
       player1Team: null,
       player2Team: null,
+      battleHistory: [],
+      currentRound: 0,
+      roundSelections: {},
       createdAt: new Date()
     });
-    
+
     // Map room code to roomId for quick lookup
     roomCodeMap.set(roomCode, roomId);
 
@@ -53,6 +54,7 @@ router.post('/create', protect, async (req, res) => {
 // @desc    Join a battle room by code
 // @access  Private
 router.post('/join', protect, async (req, res) => {
+  console.log(`User ${req.user.username} attempting to join room with code: ${req.body.roomCode}`);
   try {
     const { roomCode } = req.body;
 
@@ -66,7 +68,7 @@ router.post('/join', protect, async (req, res) => {
     // Find room by code using the code map
     const normalizedCode = roomCode.toUpperCase();
     const foundRoomId = roomCodeMap.get(normalizedCode);
-    
+
     if (!foundRoomId) {
       return res.status(404).json({
         success: false,
@@ -110,12 +112,15 @@ router.post('/join', protect, async (req, res) => {
     // Add player to room
     room.players.push({
       userId: req.user._id.toString(),
-      username: req.user.username
+      username: req.user.username,
+      socketId: null
     });
 
     if (room.players.length === 2) {
       room.gameState = 'ready';
     }
+
+    console.log(`Room ${room.roomId} is now ${room.gameState} with ${room.players.length} players`);
 
     res.json({
       success: true,
@@ -179,7 +184,14 @@ router.post('/submit-team', protect, async (req, res) => {
 
     // Check if both teams are ready
     const bothReady = room.player1Team && room.player2Team;
-    
+
+    if (bothReady) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(roomId).emit('teams-ready');
+      }
+    }
+
     res.json({
       success: true,
       teamSubmitted: true,
@@ -275,7 +287,8 @@ router.get('/:roomId/opponent-team', protect, async (req, res) => {
       });
     }
 
-    // Get opponent's team
+    // Get opponent's info and team
+    const opponentInfo = room.players.find(p => p.userId !== req.user._id.toString());
     const opponentTeam = playerIndex === 0 ? room.player2Team : room.player1Team;
 
     if (!opponentTeam) {
@@ -288,7 +301,11 @@ router.get('/:roomId/opponent-team', protect, async (req, res) => {
 
     res.json({
       success: true,
-      opponentTeam
+      opponentTeam,
+      opponent: opponentInfo ? {
+        userId: opponentInfo.userId,
+        username: opponentInfo.username
+      } : null
     });
   } catch (error) {
     console.error('Get opponent team error:', error);

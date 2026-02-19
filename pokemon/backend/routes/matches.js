@@ -105,23 +105,25 @@ router.post('/:matchId/complete', protect, async (req, res) => {
     const player2User = match.player2.userId ? await User.findById(match.player2.userId) : null;
 
     if (player1User) {
+      console.log(`Updating stats for Player 1 (${player1User.username}): result=${winner === 'player1' ? 'win' : (winner === 'player2' ? 'loss' : 'draw')}`);
       if (winner === 'player1') {
         player1User.updateStats('win');
-        player1User.milestonePoints += 10; // Points for winning
+        player1User.milestonePoints += 10;
       } else if (winner === 'player2') {
         player1User.updateStats('loss');
-        player1User.milestonePoints += 5; // Points for playing
+        player1User.milestonePoints += 5;
       } else {
         player1User.updateStats('draw');
         player1User.milestonePoints += 5;
       }
       await player1User.save();
+      console.log(`Player 1 stats updated: ${player1User.stats.matchesPlayed} matches, ${player1User.stats.wins} wins`);
 
-      // Check milestones
       await checkAndAwardMilestones(player1User);
     }
 
     if (player2User) {
+      console.log(`Updating stats for Player 2 (${player2User.username}): result=${winner === 'player2' ? 'win' : (winner === 'player1' ? 'loss' : 'draw')}`);
       if (winner === 'player2') {
         player2User.updateStats('win');
         player2User.milestonePoints += 10;
@@ -133,7 +135,6 @@ router.post('/:matchId/complete', protect, async (req, res) => {
         player2User.milestonePoints += 5;
       }
       await player2User.save();
-
       await checkAndAwardMilestones(player2User);
     }
 
@@ -176,7 +177,7 @@ async function checkAndAwardMilestones(user) {
     if (achieved) {
       // Check if already unlocked
       const pokemonToUnlock = milestone.rewards.pokemonUnlocks || [];
-      
+
       for (const pokemonId of pokemonToUnlock) {
         const alreadyUnlocked = user.unlockedPokemon.some(
           up => up.pokemonId === pokemonId

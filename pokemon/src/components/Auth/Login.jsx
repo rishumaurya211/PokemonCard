@@ -19,49 +19,74 @@ const Login = ({ onSwitchToSignup, onClose }) => {
     if (result.success) {
       if (onClose) onClose();
     } else {
-      setError(result.error || 'Login failed');
+      setError(result.error || 'Login failed. Check your credentials.');
     }
     
     setLoading(false);
   };
 
   return (
-    <div className="auth-modal">
-      <div className="auth-content">
-        <button className="auth-close" onClick={onClose}>×</button>
-        <h2>Login</h2>
+    <div className="auth-modal" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="auth-content" onClick={(e) => e.stopPropagation()}>
+        <button className="auth-close" onClick={onClose} aria-label="Close">×</button>
+
+        <div className="auth-logo-badge">
+          <span>⚡</span>
+        </div>
+
+        <h2>Welcome Back</h2>
+
         {error && <div className="auth-error">{error}</div>}
+
         <form onSubmit={handleSubmit}>
           <div className="auth-field">
-            <label>Email</label>
+            <label htmlFor="login-email">Email Address</label>
             <input
+              id="login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="your@email.com"
+              placeholder="trainer@pokemon.com"
+              autoComplete="email"
             />
           </div>
           <div className="auth-field">
-            <label>Password</label>
+            <label htmlFor="login-password">Password</label>
             <input
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="••••••••"
+              autoComplete="current-password"
             />
           </div>
-          <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? 'Logging in...' : 'Login'}
+          <button type="submit" className="auth-button" disabled={loading} id="login-submit-btn">
+            {loading ? '🔄 Logging in...' : '⚡ Login & Battle'}
           </button>
         </form>
+
         <p className="auth-switch">
-          Don't have an account?{' '}
+          New trainer?{' '}
           <button onClick={onSwitchToSignup} className="auth-link">
-            Sign up
+            Create an account
           </button>
         </p>
+
+        {/* Quick hint for admin */}
+        <div style={{
+          marginTop: '16px',
+          padding: '10px',
+          background: 'rgba(255,255,255,0.05)',
+          borderRadius: '8px',
+          textAlign: 'center',
+          fontSize: '1.1rem',
+          color: 'rgba(255,255,255,0.3)'
+        }}>
+          Admin? Use credentials from backend .env
+        </div>
       </div>
     </div>
   );

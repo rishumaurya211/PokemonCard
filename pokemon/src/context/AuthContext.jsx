@@ -69,16 +69,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const updateUser = React.useCallback((userData) => {
+    setUser(prev => ({ ...prev, ...userData }));
+  }, []);
+
+  const logout = React.useCallback(() => {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
     disconnectSocket();
-  };
-
-  const updateUser = (userData) => {
-    setUser(prev => ({ ...prev, ...userData }));
-  };
+  }, []);
 
   const value = {
     user,
@@ -87,6 +87,7 @@ export const AuthProvider = ({ children }) => {
     signup,
     logout,
     updateUser,
+    refreshUser: loadUser,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin'
   };
