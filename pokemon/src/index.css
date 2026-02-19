@@ -1,8 +1,9 @@
+/* Base Styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: "Inter", "Urbanist", sans-serif;
+  font-family: "Space Grotesk", "Inter", "Urbanist", sans-serif;
 }
 
 html {
@@ -371,6 +372,7 @@ body {
   overflow: hidden;
   position: relative;
   cursor: pointer;
+  min-height: 450px;
 }
 
 .pokemon-card:hover {
@@ -546,21 +548,30 @@ body {
 .info-value {
   display: block;
   font-size: 1.3rem;
-  font* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: "Urbanist", sans-serif;
-  }
+  font-weight: 700;
+  color: #333;
 }
 
-html {
-  font-size: 62.5%;
+/* Alternative Grid Styles */
+.grid-three-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.6rem;
+  text-align: center;
+  margin: 3.2rem 0;
+  align-items: end;
 }
 
-body {
-  width: 100%;
-  background-color: #eff3ff;
+/* Header Styles */
+header {
+  margin: 3.2rem 0;
+}
+
+h1 {
+  font-size: 5.4rem;
+  font-weight: bold;
+  color: #1a1a2e;
+  text-align: center;
 }
 
 h1,
@@ -570,13 +581,6 @@ h4,
 h5,
 h6 {
   font-weight: 900;
-}
-
-h1 {
-  font-size: 5.4rem;
-  font-weight: bold;
-  color: #000 !important;
-  text-align: center;
 }
 
 p,
@@ -592,57 +596,11 @@ span {
   font-weight: bold;
 }
 
-.container {
-  max-width: 152rem;
-  margin: auto;
-  padding: 1rem;
-}
-
-.grid-three-cols {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.6rem;
-  text-align: center;
-  margin: 3.2rem 0;
-  align-items: end;
-}
-
-header {
-  margin: 3.2rem 0;
-}
-
-/* New styles for the Play Game button */
+/* Game Button Styles */
 .game-button-container {
   display: flex;
   justify-content: center;
   margin-top: 2rem;
-}
-
-.play-game-button {
-  background: linear-gradient(45deg, #ff6b6b, #ffa500);
-  border: none;
-  padding: 1.5rem 3rem;
-  font-size: 1.8rem;
-  font-weight: bold;
-  border-radius: 3rem;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.play-game-button:hover {
-  transform: translateY(-3px) scale(1.05);
-  box-shadow: 0 8px 25px rgba(255, 107, 107, 0.6);
-  background: linear-gradient(45deg, #ff5252, #ff9800);
-}
-
-.play-game-button:active {
-  transform: translateY(-1px) scale(1.02);
 }
 
 .pokemon-search {
@@ -661,76 +619,10 @@ header {
   min-height: 32rem;
 }
 
-.cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  justify-content: center;
-  align-items: stretch;
-  gap: 3.2rem;
-  padding: 1rem;
-}
-
-.pokemon-card {
-  width: 100%;
-  max-width: 36rem;
-  min-height: 42rem;
-  box-shadow: rgba(0, 0, 0, 0.05) 0px 6px 24px 0px,
-    rgba(0, 0, 0, 0.08) 0px 0px 0px 1px;
-  background-color: #fff;
-  border-radius: 0.2rem;
-  padding: 1.6rem;
-  position: relative;
-  margin: auto;
-}
-
-.pokemon-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 40%;
-  transform: rotate(180deg);
-  background-color: #ebfbf1;
-  border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
-  z-index: 0;
-  transition: transform 0.3s, box-shadow 0.3s;
-}
-
-.pokemon-card:hover::before {
-  border-radius: 50% 50% 100% 0% / 99% 100% 0% 1%;
-  transition: all 0.3s;
-}
-
-.pokemon-card:hover {
-  transform: scale(1.03);
-  transition: all 0.3s;
-  box-shadow: rgba(17, 12, 46, 0.15) 0px 48px 100px 0px;
-}
-
 figure {
   display: flex;
   justify-content: center;
   filter: drop-shadow(0px 50px 100px rgba(50, 50, 93, 0.25));
-}
-
-.pokemon-image {
-  width: 100%;
-  max-height: 15rem;
-  object-fit: contain;
-  display: block;
-  margin: 0 auto;
-  z-index: 1;
-  position: relative;
-}
-
-.pokemon-name {
-  overflow: hidden;
-  font-size: 3.2rem;
-  text-align: center;
-  color: #000;
-  text-transform: capitalize;
-  margin-top: 2.4rem;
 }
 
 .pokemon-highlight {
@@ -747,8 +639,8 @@ figure {
   color: #fff;
   font-weight: bold;
 }
-/* Pagination Styles - Add this to your CSS file */
 
+/* Pagination Styles */
 .pagination {
   display: flex;
   justify-content: center;
@@ -846,7 +738,7 @@ figure {
   height: 45px;
 }
 
-/* No Results Styles - Also missing from your CSS */
+/* No Results Styles */
 .no-results {
   display: flex;
   flex-direction: column;
@@ -896,50 +788,283 @@ figure {
   box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
 }
 
-/* Responsive Design for Pagination */
+/* MOBILE RESPONSIVE STYLES */
 @media (max-width: 768px) {
+  html {
+    font-size: 55%; /* Slightly smaller base font for mobile */
+  }
+
+  .container {
+    padding: 1rem;
+  }
+
+  /* Hero Section Mobile */
+  .hero-section {
+    min-height: 60vh;
+    padding: 2rem 1rem;
+  }
+
+  .hero-title {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.6rem;
+    margin-bottom: 2rem;
+  }
+
+  .play-game-button {
+    padding: 1.5rem 3rem;
+    font-size: 1.6rem;
+  }
+
+  .button-icon {
+    font-size: 2rem;
+  }
+
+  /* Search Section Mobile */
+  .search-section {
+    padding: 2rem 1.5rem;
+    margin-bottom: 2rem;
+    border-radius: 15px;
+  }
+
+  .search-input {
+    padding: 1.2rem 1.5rem 1.2rem 5rem;
+    font-size: 1.4rem;
+  }
+
+  .search-icon {
+    left: 15px;
+    font-size: 1.6rem;
+  }
+
+  /* Pokemon Grid Mobile - Single Column */
+  .cards {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: 0;
+  }
+
+  .grid-three-cols {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  /* Pokemon Cards Mobile */
+  .pokemon-card {
+    min-height: 400px;
+    border-radius: 15px;
+    max-width: none;
+    width: 100%;
+    margin: 0;
+  }
+
+  .pokemon-card-inner {
+    padding: 1.5rem;
+  }
+
+  .pokemon-id {
+    top: 10px;
+    right: 10px;
+    padding: 0.4rem 0.8rem;
+    font-size: 1.1rem;
+  }
+
+  .pokemon-image-container {
+    height: 120px;
+    margin-bottom: 1.5rem;
+  }
+
+  .pokemon-image {
+    max-width: 100px;
+    max-height: 100px;
+  }
+
+  .pokemon-name {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+  }
+
+  .pokemon-types {
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .type-badge {
+    padding: 0.6rem 1.2rem;
+    font-size: 1.1rem;
+  }
+
+  .pokemon-stats {
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-item {
+    padding: 0.8rem;
+  }
+
+  .stat-label {
+    font-size: 1rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .stat-value {
+    font-size: 1.3rem;
+  }
+
+  .stat-value.highlight {
+    font-size: 1.4rem;
+  }
+
+  .pokemon-additional {
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .info-label {
+    font-size: 1rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .info-value {
+    font-size: 1.2rem;
+  }
+
+  /* Pagination Mobile */
   .pagination {
     flex-direction: column;
     gap: 1.5rem;
-    padding: 2rem 1rem;
+    padding: 1.5rem 1rem;
+    margin: 2rem 0;
   }
-  
+
   .pagination-numbers {
     order: -1;
     margin: 0;
     flex-wrap: wrap;
     justify-content: center;
+    gap: 0.5rem;
   }
-  
+
   .pagination-btn {
     min-width: 100px;
     font-size: 1.3rem;
     padding: 1rem 1.5rem;
   }
-  
+
   .pagination-number {
     min-width: 40px;
     height: 40px;
     font-size: 1.3rem;
-    padding: 0.8rem 1.2rem;
+    padding: 0.8rem 1rem;
+  }
+
+  /* Header Mobile */
+  h1 {
+    font-size: 3.5rem;
+  }
+
+  header {
+    margin: 2rem 0;
+  }
+
+  /* No Results Mobile */
+  .no-results {
+    padding: 4rem 1.5rem;
+  }
+
+  .no-results-icon {
+    font-size: 4rem;
+  }
+
+  .no-results h3 {
+    font-size: 2rem;
+  }
+
+  .no-results p {
+    font-size: 1.4rem;
+  }
+
+  .clear-search-button {
+    padding: 1.2rem 2.5rem;
+    font-size: 1.4rem;
   }
 }
 
+/* Extra Small Mobile (Portrait phones) */
 @media (max-width: 480px) {
+  html {
+    font-size: 50%;
+  }
+
+  .hero-title {
+    font-size: 3.5rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.4rem;
+  }
+
+  .play-game-button {
+    padding: 1.2rem 2.5rem;
+    font-size: 1.4rem;
+  }
+
+  .search-section {
+    padding: 1.5rem 1rem;
+  }
+
+  .pokemon-card {
+    min-height: 380px;
+  }
+
+  .pokemon-card-inner {
+    padding: 1.2rem;
+  }
+
+  .pokemon-name {
+    font-size: 1.8rem;
+  }
+
+  .type-badge {
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+  }
+
   .pagination-numbers {
     gap: 0.3rem;
   }
-  
+
   .pagination-number {
     min-width: 35px;
     height: 35px;
     font-size: 1.2rem;
-    padding: 0.6rem 1rem;
+    padding: 0.6rem 0.8rem;
   }
-  
+
   .pagination-btn {
     font-size: 1.2rem;
     padding: 0.8rem 1.2rem;
     min-width: 90px;
+  }
+
+  h1 {
+    font-size: 3rem;
+  }
+}
+
+/* Large Mobile/Small Tablet (Landscape phones) */
+@media (max-width: 900px) and (min-width: 769px) {
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.5rem;
+  }
+
+  .pokemon-card {
+    min-height: 420px;
   }
 }

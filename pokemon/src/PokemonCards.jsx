@@ -51,9 +51,10 @@ const PokemonCards = ({ pokemonData }) => {
           )}
           
           <img
-            src={pokemonData.sprites.other.dream_world.front_default || 
-                 pokemonData.sprites.other['official-artwork'].front_default ||
-                 pokemonData.sprites.front_default}
+            src={pokemonData.sprites?.other?.dream_world?.front_default || 
+                 pokemonData.sprites?.other?.['official-artwork']?.front_default ||
+                 pokemonData.sprites?.front_default ||
+                 pokemonData.sprites?.other?.['home']?.front_default}
             alt={pokemonData.name}
             className={`pokemon-image ${imageLoaded ? 'loaded' : ''}`}
             onLoad={() => setImageLoaded(true)}
